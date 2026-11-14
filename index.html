@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>DayFlow</title>
+  <script>
+    /* Apply a saved theme before paint. No saved choice means follow the system. */
+    try {
+      var savedTheme = localStorage.getItem('todo.theme');
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+      }
+    } catch (err) {}
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Sora:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="glow" aria-hidden="true">
+    <span class="glow-1"></span>
+    <span class="glow-2"></span>
+    <span class="glow-3"></span>
+  </div>
+
+  <div class="app">
+    <div class="panel">
+      <header class="top">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">
+            <span class="logo-inner">
+              <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M22 5.18 10.59 16.6l-4.24-4.24 1.41-1.41 2.83 2.83 10-10L22 5.18zm-2.21 5.04c.13.57.21 1.17.21 1.78 0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8c1.58 0 3.04.46 4.28 1.25l1.44-1.44A9.9 9.9 0 0 0 12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10c0-1.19-.22-2.33-.6-3.39l-1.61 1.61z"/></svg>
+            </span>
+          </div>
+          <div class="brand-text">
+            <h1>Day<span class="accent">Flow</span></h1>
+            <p class="today-line">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V10h16v11zm0-13H4V5h16v3z"/></svg>
+              <span id="date-string"></span>
+            </p>
+          </div>
+        </div>
+        <button type="button" class="theme-toggle" id="theme-toggle">
+          <svg class="icon-moon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path fill="currentColor" d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26 5.4 5.4 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/>
+          </svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" fill="currentColor"/>
+            <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M4.8 4.8l1.6 1.6M17.6 17.6l1.6 1.6M19.2 4.8l-1.6 1.6M6.4 17.6l-1.6 1.6"/>
+            </g>
+          </svg>
+        </button>
+      </header>
+
+      <form id="add-form" class="add-form" autocomplete="off">
+        <div class="add-field">
+          <svg class="add-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M22 5.18 10.59 16.6l-4.24-4.24 1.41-1.41 2.83 2.83 10-10L22 5.18zM12 20c-4.41 0-8-3.59-8-8s3.59-8 8-8c1.57 0 3.04.46 4.28 1.25l1.45-1.45A10 10 0 0 0 12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.73 0 3.36-.44 4.78-1.22l-1.5-1.5c-1 .46-2.11.72-3.28.72zm7-5h-3v2h3v3h2v-3h3v-2h-3v-3h-2v3z"/></svg>
+          <label for="new-task" class="sr-only">New task</label>
+          <input id="new-task" name="text" type="text" maxlength="500" placeholder="What needs to be done?" enterkeyhint="done" aria-keyshortcuts="N">
+          <div class="add-actions">
+            <button type="button" class="icon-btn" id="pick-due" aria-label="Pick due date (optional)" title="Pick due date">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V10h16v11zm0-13H4V5h16v3z"/></svg>
+            </button>
+            <button type="submit" class="btn-add" id="add-button">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+              <span>Add</span>
+            </button>
+          </div>
+        </div>
+        <div class="due-row" id="due-row">
+          <label for="new-due" class="sr-only">Due date (optional)</label>
+          <input id="new-due" name="due" type="date" class="new-due" tabindex="-1">
+          <span class="due-chip" id="due-chip" hidden>
+            <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+            <span id="due-chip-text"></span>
+            <button type="button" class="chip-clear" id="due-clear" aria-label="Remove due date">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </span>
+        </div>
+      </form>
+
+      <noscript>
+        <p class="notice">JavaScript is required. Tasks stay in this browser, with no account.</p>
+      </noscript>
+      <main id="board" class="board" aria-label="Task board" aria-describedby="reorder-help">
+        <section class="column" data-status="todo" aria-labelledby="col-todo">
+          <header class="column-head">
+            <h2 id="col-todo">To Do</h2>
+            <span class="column-count" id="count-todo">0</span>
+          </header>
+          <ul id="list-todo" class="list" aria-label="To do"></ul>
+          <p class="column-empty" id="empty-todo">New tasks land here.</p>
+        </section>
+        <section class="column" data-status="doing" aria-labelledby="col-doing">
+          <header class="column-head">
+            <h2 id="col-doing">Doing</h2>
+            <span class="column-count" id="count-doing">0</span>
+          </header>
+          <ul id="list-doing" class="list" aria-label="Doing"></ul>
+          <p class="column-empty" id="empty-doing">Move a task here when you start it.</p>
+        </section>
+        <section class="column" data-status="done" aria-labelledby="col-done">
+          <header class="column-head">
+            <h2 id="col-done">Done</h2>
+            <span class="column-count" id="count-done">0</span>
+          </header>
+          <ul id="list-done" class="list" aria-label="Done"></ul>
+          <p class="column-empty" id="empty-done">Finished tasks land here.</p>
+        </section>
+        <p id="reorder-help" class="sr-only">To move a task, focus its drag handle and press the arrow keys. Up and down reorder it in the column. Left and right move it between columns.</p>
+      </main>
+
+      <footer class="footer">
+        <p class="sort-hint">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+          <span>Drag cards between columns, or use the arrow keys</span>
+        </p>
+        <div class="footer-actions">
+          <button type="button" class="link-btn" id="backup" title="Download a backup file">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            <span>Backup</span>
+          </button>
+          <button type="button" class="link-btn" id="restore" title="Restore from a backup file">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>
+            <span>Restore</span>
+          </button>
+          <input type="file" id="restore-file" accept=".txt,.json,text/plain,application/json" hidden>
+          <button type="button" class="link-btn link-danger" id="clear-completed">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M15 16h4v2h-4zm0-8h7v2h-7zm0 4h6v2h-6zM3 18c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2V8H3v10zM14 5h-3l-1-1H6L5 5H2v2h12z"/></svg>
+            <span>Clear Completed</span>
+          </button>
+        </div>
+      </footer>
+    </div>
+  </div>
+  <div id="announce" class="sr-only" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
