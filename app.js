@@ -1,6 +1,12 @@
 (function () {
   var TASKS_KEY = 'todo.tasks';
   var THEME_KEY = 'todo.theme';
+  var SUPABASE_URL = 'https://zhfgcevxcbthqztpflsz.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_BeeHJwzSPXJOJUQNFWLbrA_sS4dU31G';
+  var db = window.supabase && typeof window.supabase.createClient === 'function'
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+    : null;
+  var remoteQueue = Promise.resolve();
 
   var boardEl = document.getElementById('board');
   var columns = {
@@ -29,11 +35,31 @@
   var restoreInput = document.getElementById('restore-file');
   var themeBtn = document.getElementById('theme-toggle');
   var announceEl = document.getElementById('announce');
+  var authScreen = document.getElementById('auth-screen');
+  var authStatus = document.getElementById('auth-status');
+  var authForm = document.getElementById('auth-form');
+  var authHeading = document.getElementById('auth-heading');
+  var authHelp = document.getElementById('auth-help');
+  var authError = document.getElementById('auth-error');
+  var authNote = document.getElementById('auth-note');
+  var authEmail = document.getElementById('auth-email');
+  var authPassword = document.getElementById('auth-password');
+  var authSubmit = document.getElementById('auth-submit');
+  var authSwitch = document.getElementById('auth-switch');
+  var accountEl = document.getElementById('account');
+  var accountEmail = document.getElementById('account-email');
+  var signOutBtn = document.getElementById('sign-out');
+  var footerEl = document.getElementById('app-footer');
 
   var STATUSES = ['todo', 'doing', 'done'];
   var STATUS_LABEL = { todo: 'To Do', doing: 'Doing', done: 'Done' };
 
-  var tasks = loadTasks();
+  var tasks = [];
+  var currentUserId = null;
+  var sessionApplied = false;
+  var loadGen = 0;
+  var authMode = 'signin';
+  var authBusy = false;
   var editingId = null;
   var editReturn = 'text';
   var drag = null;
@@ -67,9 +93,15 @@
     return 't-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
   }
 
+  function tasksKey() {
+    return currentUserId ? TASKS_KEY + '.' + currentUserId : null;
+  }
+
   function loadTasks() {
+    var key = tasksKey();
+    if (!key) return [];
     try {
-      var raw = localStorage.getItem(TASKS_KEY);
+      var raw = localStorage.getItem(key);
       if (!raw) return [];
       return sanitize(JSON.parse(raw));
     } catch (err) {
@@ -153,12 +185,86 @@
     return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
   }
 
-  function persist() {
+  function cacheLocal() {
+    var key = tasksKey();
+    if (!key) return;
     try {
-      localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+      localStorage.setItem(key, JSON.stringify(tasks));
+    } catch (err) {}
+  }
+
+  function mergeLegacy(remote) {
+    try {
+      if (localStorage.getItem('todo.legacyClaimed')) return remote;
+      localStorage.setItem('todo.legacyClaimed', currentUserId || '1');
+      var raw = localStorage.getItem(TASKS_KEY);
+      if (!raw) return remote;
+      var legacy = sanitize(JSON.parse(raw));
+      var seen = Object.create(null);
+      remote.forEach(function (task) { seen[task.id] = true; });
+      var extra = legacy.filter(function (task) { return !seen[task.id]; });
+      return extra.length ? sanitize(remote.concat(extra)) : remote;
     } catch (err) {
-      announce('Could not save tasks in this browser.');
+      return remote;
     }
+  }
+
+  function taskFromRow(row) {
+    return {
+      id: row.id,
+      text: row.title,
+      status: row.status,
+      completed: row.status === 'done',
+      dueDate: row.due_date || null,
+      order: row.position
+    };
+  }
+
+  function rowFromTask(task) {
+    return {
+      id: task.id,
+      title: task.text,
+      status: taskStatus(task),
+      due_date: task.dueDate,
+      position: task.order,
+      updated_at: new Date().toISOString(),
+      user_id: currentUserId
+    };
+  }
+
+  function syncRemote() {
+    if (!db) return Promise.reject(new Error('missing client'));
+    var snapshot = tasks.map(rowFromTask);
+    var keep = Object.create(null);
+    snapshot.forEach(function (row) { keep[row.id] = true; });
+    return db.from('tasks').select('id').eq('user_id', currentUserId).then(function (existing) {
+      if (existing.error) throw existing.error;
+      var remove = (existing.data || []).map(function (row) { return row.id; }).filter(function (id) {
+        return !keep[id];
+      });
+      var write = snapshot.length
+        ? db.from('tasks').upsert(snapshot)
+        : Promise.resolve({ error: null });
+      return write.then(function (saved) {
+        if (saved.error) throw saved.error;
+        if (!remove.length) return;
+        return db.from('tasks').delete().in('id', remove).then(function (removed) {
+          if (removed.error) throw removed.error;
+        });
+      });
+    });
+  }
+
+  function persist() {
+    cacheLocal();
+    if (!db || !currentUserId) {
+      if (!currentUserId) announce('Sign in to save tasks.');
+      else announce('Could not save tasks to COMB BOMB BOARD.');
+      return;
+    }
+    remoteQueue = remoteQueue.then(syncRemote).catch(function () {
+      announce('Could not save tasks to COMB BOMB BOARD.');
+    });
   }
 
   function savedTheme() {
@@ -1106,6 +1212,10 @@
 
   function updateDateString() {
     var text = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    if (!currentUserId) {
+      dateStringEl.textContent = text;
+      return;
+    }
     var open = tasks.filter(function (task) { return taskStatus(task) !== 'done'; }).length;
     var openLabel = open === 1 ? '1 open' : open + ' open';
     dateStringEl.textContent = text + ' \u2022 ' + openLabel;
@@ -1149,6 +1259,7 @@
     if (event.key !== 'n' && event.key !== 'N') return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     var active = document.activeElement;
+    if (addForm.hidden) return;
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
     event.preventDefault();
     newTaskInput.focus();
@@ -1205,7 +1316,186 @@
     });
   }
 
-  updateDateString();
-  updateDueChip();
-  render();
+  function showAuthError(message) {
+    authError.textContent = message;
+    authError.hidden = false;
+  }
+
+  function setAuthMode(mode) {
+    authMode = mode === 'signup' ? 'signup' : 'signin';
+    var signingIn = authMode === 'signin';
+    authHeading.textContent = signingIn ? 'Sign in' : 'Create account';
+    authSubmit.textContent = signingIn ? 'Sign in' : 'Create account';
+    authSwitch.textContent = signingIn ? 'Create an account' : 'Already have an account? Sign in';
+    authHelp.textContent = signingIn
+      ? 'Your tasks stay with your account.'
+      : 'Choose a password of at least 6 characters.';
+    authPassword.setAttribute('autocomplete', signingIn ? 'current-password' : 'new-password');
+    authError.hidden = true;
+  }
+
+  function showAuthForm() {
+    authScreen.hidden = false;
+    authStatus.hidden = true;
+    authForm.hidden = false;
+    addForm.hidden = true;
+    boardEl.hidden = true;
+    footerEl.hidden = true;
+    accountEl.hidden = true;
+  }
+
+  function showLoading(email) {
+    authScreen.hidden = false;
+    authForm.hidden = true;
+    authStatus.hidden = false;
+    authStatus.textContent = 'Loading your tasks\u2026';
+    addForm.hidden = true;
+    boardEl.hidden = true;
+    footerEl.hidden = true;
+    accountEl.hidden = false;
+    accountEmail.textContent = email || 'Signed in';
+    accountEmail.title = email || '';
+  }
+
+  function showBoard(email) {
+    authScreen.hidden = true;
+    addForm.hidden = false;
+    boardEl.hidden = false;
+    footerEl.hidden = false;
+    accountEl.hidden = false;
+    accountEmail.textContent = email || 'Signed in';
+    accountEmail.title = email || '';
+  }
+
+  function loadRemote(email) {
+    var gen = loadGen;
+    var userId = currentUserId;
+    if (!db || !userId) return;
+    db.from('tasks')
+      .select('id, title, status, due_date, position')
+      .eq('user_id', userId)
+      .order('position', { ascending: true })
+      .then(function (result) {
+        if (gen !== loadGen || userId !== currentUserId) return;
+        if (result.error) throw result.error;
+        var remote = sanitize((result.data || []).map(taskFromRow));
+        var merged = mergeLegacy(remote);
+        tasks = merged;
+        cacheLocal();
+        showBoard(email);
+        render();
+        if (merged.length !== remote.length) persist();
+      })
+      .catch(function () {
+        if (gen !== loadGen || userId !== currentUserId) return;
+        tasks = loadTasks();
+        showBoard(email);
+        render();
+        announce('Could not load COMB BOMB BOARD. Showing tasks saved in this browser.');
+      });
+  }
+
+  function applySession(session) {
+    var user = session && session.user;
+    var nextId = user ? user.id : null;
+    if (nextId === currentUserId && sessionApplied) return;
+    sessionApplied = true;
+    currentUserId = nextId;
+    loadGen += 1;
+    editingId = null;
+    cleanupDrag();
+    if (!nextId) {
+      tasks = [];
+      showAuthForm();
+      render();
+      return;
+    }
+    var email = user.email || 'Signed in';
+    tasks = loadTasks();
+    showLoading(email);
+    loadRemote(email);
+  }
+
+  function onAuthSubmit(event) {
+    event.preventDefault();
+    if (!db || authBusy) return;
+    var email = authEmail.value.trim();
+    var password = authPassword.value;
+    authError.hidden = true;
+    authNote.hidden = true;
+    if (!email || password.length < 6) {
+      showAuthError('Enter your email and a password of at least 6 characters.');
+      return;
+    }
+    authBusy = true;
+    authSubmit.disabled = true;
+    var request = authMode === 'signup'
+      ? db.auth.signUp({ email: email, password: password })
+      : db.auth.signInWithPassword({ email: email, password: password });
+    request.then(function (result) {
+      authBusy = false;
+      authSubmit.disabled = false;
+      if (result.error) {
+        showAuthError(result.error.message || 'Could not sign in.');
+        return;
+      }
+      authPassword.value = '';
+      if (authMode === 'signup' && !(result.data && result.data.session)) {
+        authNote.hidden = false;
+        authNote.textContent = 'Check your email to confirm the account, then sign in.';
+        setAuthMode('signin');
+      }
+    }).catch(function () {
+      authBusy = false;
+      authSubmit.disabled = false;
+      showAuthError('Could not reach the server. Try again.');
+    });
+  }
+
+  authForm.addEventListener('submit', onAuthSubmit);
+  authSwitch.addEventListener('click', function () {
+    authNote.hidden = true;
+    setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
+    authEmail.focus();
+  });
+  signOutBtn.addEventListener('click', function () {
+    if (!db) return;
+    signOutBtn.disabled = true;
+    db.auth.signOut().then(function () {
+      signOutBtn.disabled = false;
+    }).catch(function () {
+      signOutBtn.disabled = false;
+      announce('Could not sign out. Try again.');
+    });
+  });
+
+  function boot() {
+    updateDueChip();
+    updateDateString();
+    if (!db) {
+      authStatus.hidden = false;
+      authStatus.textContent = 'Could not reach the server.';
+      authForm.hidden = true;
+      return;
+    }
+    db.auth.onAuthStateChange(function (event, session) {
+      if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return;
+      applySession(session);
+    });
+    db.auth.getSession().then(function (result) {
+      if (sessionApplied) return;
+      if (result.error) {
+        showAuthForm();
+        showAuthError('Could not check your account. Try again.');
+        return;
+      }
+      applySession(result.data.session);
+    }).catch(function () {
+      if (sessionApplied) return;
+      showAuthForm();
+      showAuthError('Could not check your account. Try again.');
+    });
+  }
+
+  boot();
 })();
