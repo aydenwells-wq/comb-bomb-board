@@ -108,8 +108,22 @@
       <noscript>
         <p class="notice">JavaScript is required to sign in.</p>
       </noscript>
-      <main id="board" class="board" aria-label="Task board" aria-describedby="reorder-help" hidden>
-        <section class="column" data-status="todo" aria-labelledby="col-todo">
+      <main id="board" class="board" data-column="todo" aria-label="Task board" aria-describedby="reorder-help" hidden>
+        <div class="column-tabs" id="column-tabs" role="tablist" aria-label="Columns">
+          <button type="button" class="column-tab" id="tab-todo" role="tab" data-status="todo" aria-selected="true" aria-controls="panel-todo">
+            To Do
+            <span class="column-tab-count" id="tab-count-todo">0</span>
+          </button>
+          <button type="button" class="column-tab" id="tab-doing" role="tab" data-status="doing" aria-selected="false" tabindex="-1" aria-controls="panel-doing">
+            Doing
+            <span class="column-tab-count" id="tab-count-doing">0</span>
+          </button>
+          <button type="button" class="column-tab" id="tab-done" role="tab" data-status="done" aria-selected="false" tabindex="-1" aria-controls="panel-done">
+            Done
+            <span class="column-tab-count" id="tab-count-done">0</span>
+          </button>
+        </div>
+        <section class="column" id="panel-todo" data-status="todo" aria-labelledby="col-todo">
           <header class="column-head">
             <h2 id="col-todo">To Do</h2>
             <span class="column-count" id="count-todo">0</span>
@@ -117,7 +131,7 @@
           <ul id="list-todo" class="list" aria-label="To do"></ul>
           <p class="column-empty" id="empty-todo">New tasks land here.</p>
         </section>
-        <section class="column" data-status="doing" aria-labelledby="col-doing">
+        <section class="column" id="panel-doing" data-status="doing" aria-labelledby="col-doing">
           <header class="column-head">
             <h2 id="col-doing">Doing</h2>
             <span class="column-count" id="count-doing">0</span>
@@ -125,7 +139,7 @@
           <ul id="list-doing" class="list" aria-label="Doing"></ul>
           <p class="column-empty" id="empty-doing">Move a task here when you start it.</p>
         </section>
-        <section class="column" data-status="done" aria-labelledby="col-done">
+        <section class="column" id="panel-done" data-status="done" aria-labelledby="col-done">
           <header class="column-head">
             <h2 id="col-done">Done</h2>
             <span class="column-count" id="count-done">0</span>
@@ -139,7 +153,8 @@
       <footer class="footer" id="app-footer" hidden>
         <p class="sort-hint">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
-          <span>Drag cards between columns, or use the arrow keys</span>
+          <span class="hint-wide">Drag cards between columns, or use the arrow keys</span>
+          <span class="hint-narrow">Use the tabs to switch columns</span>
         </p>
         <div class="footer-actions">
           <button type="button" class="link-btn" id="backup" title="Download a backup file">

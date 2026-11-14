@@ -19,6 +19,17 @@
     doing: document.getElementById('count-doing'),
     done: document.getElementById('count-done')
   };
+  var columnTabList = document.getElementById('column-tabs');
+  var columnTabs = {
+    todo: document.getElementById('tab-todo'),
+    doing: document.getElementById('tab-doing'),
+    done: document.getElementById('tab-done')
+  };
+  var tabCounts = {
+    todo: document.getElementById('tab-count-todo'),
+    doing: document.getElementById('tab-count-doing'),
+    done: document.getElementById('tab-count-done')
+  };
   var dateStringEl = document.getElementById('date-string');
   var pickDueBtn = document.getElementById('pick-due');
   var dueRow = document.getElementById('due-row');
@@ -60,6 +71,7 @@
   var loadGen = 0;
   var authMode = 'signin';
   var authBusy = false;
+  var activeColumn = 'todo';
   var editingId = null;
   var editReturn = 'text';
   var drag = null;
@@ -116,6 +128,18 @@
 
   function statusLabel(status) {
     return STATUS_LABEL[status] || 'To Do';
+  }
+
+  function showColumn(status) {
+    if (STATUSES.indexOf(status) === -1 || status === activeColumn) return;
+    activeColumn = status;
+    boardEl.dataset.column = status;
+    STATUSES.forEach(function (name) {
+      var tab = columnTabs[name];
+      var selected = name === status;
+      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+      tab.tabIndex = selected ? 0 : -1;
+    });
   }
 
   function neighborStatus(status, delta) {
@@ -450,7 +474,9 @@
 
     STATUSES.forEach(function (status) {
       var visible = columnTasks(status);
-      counts[status].textContent = String(visible.length);
+      var countText = String(visible.length);
+      counts[status].textContent = countText;
+      tabCounts[status].textContent = countText;
       var list = columns[status];
       var fragment = document.createDocumentFragment();
       visible.forEach(function (task, index) {
@@ -683,6 +709,7 @@
     addForm.reset();
     updateDueChip();
     editingId = null;
+    showColumn('todo');
     render();
     newTaskInput.focus();
     announce('Added ' + quoted(text) + '.');
@@ -791,6 +818,7 @@
       var insertAt = Math.min(Math.max(from, 0), ids[dest].length);
       ids[dest].splice(insertAt, 0, id);
       tasks = applyBoard(ids);
+      showColumn(dest);
       persist();
       var part = focusPart || 'handle';
       if (part === 'next' && !neighborStatus(dest, 1)) part = 'prev';
@@ -1071,6 +1099,7 @@
       }
     }
     var task = findTask(state.id);
+    if (moved && task) showColumn(taskStatus(task));
     render({ focus: { id: state.id, part: 'handle' }, preventScroll: true });
     if (moved && task) {
       var status = taskStatus(task);
@@ -1298,6 +1327,34 @@
   boardEl.addEventListener('submit', onEditSubmit);
   boardEl.addEventListener('keydown', onListKeyDown);
   boardEl.addEventListener('pointerdown', onPointerDown, { passive: false });
+
+  columnTabList.addEventListener('click', function (event) {
+    var tab = event.target.closest('.column-tab');
+    if (!tab || !columnTabList.contains(tab)) return;
+    var status = tab.dataset.status;
+    if (status === activeColumn) return;
+    showColumn(status);
+    announce('Showing ' + statusLabel(status) + '.');
+  });
+
+  columnTabList.addEventListener('keydown', function (event) {
+    var tab = event.target.closest('.column-tab');
+    if (!tab || !columnTabList.contains(tab)) return;
+    var index = STATUSES.indexOf(tab.dataset.status);
+    var next = index;
+    if (event.key === 'ArrowRight') next = (index + 1) % STATUSES.length;
+    else if (event.key === 'ArrowLeft') next = (index - 1 + STATUSES.length) % STATUSES.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = STATUSES.length - 1;
+    else return;
+    event.preventDefault();
+    var status = STATUSES[next];
+    if (status !== activeColumn) {
+      showColumn(status);
+      announce('Showing ' + statusLabel(status) + '.');
+    }
+    columnTabs[status].focus();
+  });
 
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape' && drag && drag.started) {
